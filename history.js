@@ -25,31 +25,16 @@ window.History = (function(window, undefined){
 		_parseState = function() {},
 				
 		/**
-		 * @name History~_setState
+		 * @name History~_doStateUpdate
 		 * @function
-		 * @description Update the state object
-		 * @param {number} uid
-		 * @param {string} path
-		 * @param {string} title
-		 * @param {object} data
+		 * @description Update the expanded state object, the browser document title, and call parseState.
+		 * @param {object} state
+		 * @param {boolean} isPopState
 		 */
-		_setState = function(uid, path, title, data) {
-			config.state = {
-				uid: uid,
-				path: path,
-				title: title,
-				data: data
-			};
-		},
-		
-		/**
-		 * @name History~_setDocumentTitle
-		 * @function
-		 * @description Update the page title using title store in state data.
-		 * @param {string} title
-		 */
-		_setDocumentTitle = function(title) {
-			if (typeof title === 'string') document.title = state.title;
+		_doStateUpdate = function(state, isPopState) {
+			config.state = state;
+			if (typeof state.title === 'string') document.title = state.title;
+			_parseState(state, isPopState);
 		},
 		
 		/**
@@ -60,10 +45,7 @@ window.History = (function(window, undefined){
 		 */
 		_popstate = function(e) {
 			if (config.hasPushed) {
-				var state = (e.originalEvent) ? e.originalEvent.state : e.state;
-				_setState(state);
-				_setDocumentTitle(state.title);
-				_parseState(state, true); //true=isPopState
+				_doStateUpdate( ((e.originalEvent) ? e.originalEvent.state : e.state), true);
 			}
 		},
 		
@@ -77,7 +59,7 @@ window.History = (function(window, undefined){
 		_replaceState = function(data) {
 			if (config.historyApi) {
 				config.state.data = data;
-				history.replaceState(config.state, null, config.state.path);
+				history.replaceState(config.state);
 			}
 		},
 		
@@ -96,11 +78,9 @@ window.History = (function(window, undefined){
 				window.location.href = path;
 				return;
 			}
+			_doStateUpdate( { index:(config.state.index + 1), path:path, title:title, data:data }, false);
+			history.pushState(config.state, title, path);
 			config.hasPushed = true; // used in popstate to ensure at least one push has happened
-			_setState((config.state.uid + 1), path, title, data);
-			history.pushState(config.state, null, path);
-			_setDocumentTitle(title);
-			_parseState(state);
 		},
 		
 		/**
@@ -122,7 +102,7 @@ window.History = (function(window, undefined){
 				if (typeof parseState === 'function') _parseState = parseState;
 				
 				// set our initial state object
-				_setState(0, (window.location.pathname + window.location.search), document.title, {});
+				config.state = { index:0, path:(window.location.pathname + window.location.search), title:document.title, data:{} };
 				
 				// use the history popstate event to load the previous or next page
 				// also runs when the page first loads in chrome (but not safari?)
